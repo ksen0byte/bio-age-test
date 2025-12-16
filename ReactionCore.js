@@ -1,10 +1,17 @@
 /**
  * REACTION CORE MODULE
- * Чиста бізнес-логіка тесту без HTML/CSS.
- * Відповідає за таймінги, стани та обробку результатів.
+ *
+ * Модуль чистої бізнес-логіки для тесту реакції.
+ * Відповідає за:
+ * - Таймінги появи стимулів
+ * - Обробку введення (кліків)
+ * - Розрахунок статистики
+ * - Керування раундами та перервами
+ *
+ * Не містить жодної логіки відображення (DOM/HTML).
  */
 
-// Таблиця нормативів (ізольована константа)
+// Таблиця нормативів біологічного віку (Патент №126671)
 const BIO_AGE_NORMATIVE_TABLE = {
     male: {7: 357.86, 8: 344.72, 9: 302.67, 10: 295.73, 11: 264.15, 12: 262.26, 13: 248.71, 14: 243.6, 15: 235.9, 16: 231.6},
     female: {7: 387.06, 8: 347.32, 9: 311.79, 10: 304.15, 11: 272.93, 12: 268.74, 13: 256.78, 14: 251.77, 15: 247.3, 16: 239.4}
@@ -12,22 +19,22 @@ const BIO_AGE_NORMATIVE_TABLE = {
 
 export class ReactionTestCore {
     /**
-     * Створює екземпляр тесту.
-     * @param {Object} config - Об'єкт налаштувань.
-     * @param {number} [config.stimuliCount=30] - Кількість спроб у тесті.
-     * @param {number} [config.exposureTime=700] - Час показу стимулу (мс).
-     * @param {number} [config.minDelay=750] - Мінімальна затримка перед появою (мс).
-     * @param {number} [config.maxDelay=1250] - Максимальна затримка перед появою (мс).
-     * @param {number} [config.minValidReactionTime=100] - Поріг для фільтрації випадкових/надшвидких кліків (мс).
-     * @param {number} [config.maxSpamClicks=3] - Максимальна кількість кліків на один стимул до зупинки тесту (захист від спаму).
+     * @param {Object} config - Налаштування тесту
+     * @param {number} [config.rounds=3] - Кількість серій (раундів) тестування
+     * @param {number} [config.stimuliCount=30] - Кількість стимулів в одному раунді
+     * @param {number} [config.exposureTime=700] - Час показу стимулу на екрані (мс)
+     * @param {number} [config.minDelay=1500] - Мінімальна пауза перед появою (мс)
+     * @param {number} [config.maxDelay=3000] - Максимальна пауза перед появою (мс)
+     * @param {number} [config.minValidReactionTime=100] - Мінімальний час реакції (захист від випадкових кліків)
+     * @param {number} [config.maxSpamClicks=3] - Макс. кількість кліків на один стимул (захист від "спаму")
      */
     constructor(config = {}) {
-        // Дефолтні налаштування з можливістю перезапису
         this.config = {
+            rounds: 3,
             stimuliCount: 30,
             exposureTime: 700,
-            minDelay: 750,
-            maxDelay: 1250,
+            minDelay: 1500,
+            maxDelay: 3000,
             minValidReactionTime: 100,
             maxSpamClicks: 3,
             ...config
@@ -35,66 +42,85 @@ export class ReactionTestCore {
 
         // Внутрішній стан
         this.state = {
-            isRunning: false,           // Чи активний тест зараз
-            currentStimulusIndex: 0,    // Номер поточного стимулу (0-based)
-            results: [],                // Масив збережених результатів (мс)
-            stimulusStartTime: 0,       // Час появи останнього стимулу (timestamp)
-            isStimulusVisible: false,   // Чи видно стимул прямо зараз
-            currentSpamCount: 0,        // Лічильник кліків для поточного стимулу
-            timerId: null               // ID таймера для очистки
+            isRunning: false,           // Чи активний процес тестування
+            isRoundActive: false,       // Чи йде зараз раунд (активні стимули)
+            currentRound: 0,            // Поточний номер раунду (1-based)
+            currentStimulusIndex: 0,    // Поточний номер стимулу в раунді
+            stimulusResults: [],        // Результати поточного раунду
+            roundAverages: [],          // Середні значення завершених раундів
+
+            // Тимчасові змінні для одного стимулу
+            stimulusStartTime: 0,
+            isStimulusVisible: false,
+            clickCountForStimulus: 0,   // Лічильник кліків для поточного стимулу
+
+            timerId: null
         };
 
-        // --- Події (Callbacks) ---
-        // Викликається, коли треба показати стимул
-        this.onStimulusShow = (index) => {
-        };
-
-        // Викликається, коли стимул зникає (успіх або таймаут)
+        // --- Події (Callbacks) для зовнішнього коду ---
+        this.onStimulusShow = (index, total) => {
+        };     // Показати стимул
         this.onStimulusHide = () => {
-        };
-
-        // Викликається при завершенні всіх спроб
-        this.onTestComplete = (stats) => {
-        };
-
-        // Викликається, якщо виявлено підозрілу активність (спам кнопкою)
+        };                 // Сховати стимул
+        this.onRoundComplete = (roundStats, isFinal) => {
+        }; // Раунд завершено
         this.onSpamDetected = () => {
-        };
+        };                 // Виявлено порушення
     }
 
     /**
-     * Запускає тест з початку.
+     * Починає тестування з першого раунду.
      */
     start() {
-        this.reset();
+        this.resetFullTest();
+        this.startNextRound();
+    }
+
+    /**
+     * Запускає наступний раунд (наприклад, після перерви).
+     */
+    startNextRound() {
+        if (this.state.currentRound >= this.config.rounds) {
+            return; // Всі раунди завершено
+        }
+
+        this.state.currentRound++;
+        this.state.currentStimulusIndex = 0;
+        this.state.stimulusResults = [];
         this.state.isRunning = true;
+        this.state.isRoundActive = true;
+
         this.scheduleNextStimulus();
     }
 
     /**
-     * Скидає стан тесту до початкового.
-     * Зупиняє всі таймери.
+     * Повне скидання стану (для рестарту).
      */
-    reset() {
-        this.state.results = [];
+    resetFullTest() {
+        this.state.roundAverages = [];
+        this.state.currentRound = 0;
+        this.resetRoundState();
+    }
+
+    resetRoundState() {
+        this.state.stimulusResults = [];
         this.state.currentStimulusIndex = 0;
         this.state.isRunning = false;
+        this.state.isRoundActive = false;
         this.state.isStimulusVisible = false;
-        this.state.currentSpamCount = 0;
         clearTimeout(this.state.timerId);
     }
 
     /**
-     * Планує появу наступного стимулу через випадковий проміжок часу.
+     * Планує появу стимулу через випадковий час.
      * @private
      */
     scheduleNextStimulus() {
         if (this.state.currentStimulusIndex >= this.config.stimuliCount) {
-            this.finish();
+            this.finishRound();
             return;
         }
 
-        // Розрахунок випадкової затримки в межах minDelay та maxDelay
         const delay = Math.floor(Math.random() * (this.config.maxDelay - this.config.minDelay) + this.config.minDelay);
 
         this.state.timerId = setTimeout(() => {
@@ -109,97 +135,103 @@ export class ReactionTestCore {
     showStimulus() {
         this.state.isStimulusVisible = true;
         this.state.stimulusStartTime = Date.now();
-        this.state.currentSpamCount = 0; // Скидаємо лічильник спаму для нового стимулу
+        this.state.clickCountForStimulus = 0; // Скидання лічильника спаму
 
-        this.onStimulusShow(this.state.currentStimulusIndex + 1);
+        this.onStimulusShow(this.state.currentStimulusIndex + 1, this.config.stimuliCount);
 
-        // Таймер експозиції: якщо користувач не натисне, стимул зникне сам
+        // Таймер експозиції (авто-приховування)
         this.state.timerId = setTimeout(() => {
             if (this.state.isStimulusVisible) {
-                this.handleNoReaction(); // Час вийшов
+                this.handleNoReaction();
             }
         }, this.config.exposureTime);
     }
 
     /**
-     * Обробляє вхід від користувача (клік, натискання клавіші).
-     * Має бути викликаний із UI (наприклад, з обробника 'mousedown' або 'keydown').
+     * Обробляє вхід від користувача (клік/клавіша).
+     * @returns {boolean} - true якщо вхід зараховано, false якщо проігноровано
      */
     registerInput() {
-        if (!this.state.isRunning) return;
+        // Ігноруємо, якщо тест не йде або стимул вже зник
+        if (!this.state.isRoundActive || !this.state.isStimulusVisible) return false;
 
-        // 1. Перевірка на спам (чи не забагато кліків на один стимул)
-        this.state.currentSpamCount++;
-        if (this.state.currentSpamCount > this.config.maxSpamClicks) {
-            this.state.isRunning = false;
-            clearTimeout(this.state.timerId);
-            this.onSpamDetected(); // Повідомляємо UI про порушення
-            return;
+        // 1. Захист від спаму (забагато кліків на один стимул)
+        this.state.clickCountForStimulus++;
+        if (this.state.clickCountForStimulus > this.config.maxSpamClicks) {
+            this.handleSpam();
+            return false;
         }
-
-        // Якщо стимул не видно (фальстарт), ігноруємо (але лічильник спаму вже інкрементовано)
-        if (!this.state.isStimulusVisible) return;
 
         const reactionTime = Date.now() - this.state.stimulusStartTime;
 
-        // 2. Фільтр "надшвидких" реакцій (фізіологічно неможливих)
-        if (reactionTime < this.config.minValidReactionTime) return;
+        // 2. Фільтр фізіологічно неможливих реакцій
+        if (reactionTime < this.config.minValidReactionTime) {
+            return false;
+        }
 
-        // Успішна реакція
         this.recordResult(reactionTime);
+        return true;
+    }
+
+    handleSpam() {
+        this.state.isRoundActive = false; // Пауза
+        clearTimeout(this.state.timerId);
+        this.onStimulusHide();
+        this.onSpamDetected(); // UI має показати попередження і перезапустити раунд або стимул
     }
 
     /**
-     * Обробляє ситуацію, коли користувач не встиг натиснути під час експозиції.
+     * Користувач не встиг натиснути.
      * @private
      */
     handleNoReaction() {
-        // Записуємо null як ознаку пропуску
+        // Можна записувати null (пропуск) або макс. час.
+        // Зараз просто ігноруємо пропуск у статистиці або рахуємо як помилку.
+        // Для простоти переходимо далі без запису результату.
         this.recordResult(null);
     }
 
-    /**
-     * Зберігає результат спроби і переходить до наступного кроку.
-     * @param {number|null} time - Час реакції в мс або null.
-     * @private
-     */
     recordResult(time) {
         this.state.isStimulusVisible = false;
-        this.onStimulusHide(); // Ховаємо стимул в UI
+        this.onStimulusHide();
 
-        // Додаємо результат, якщо це не пропуск (опціонально можна зберігати і null)
         if (time !== null) {
-            this.state.results.push(time);
+            this.state.stimulusResults.push(time);
         }
 
         this.state.currentStimulusIndex++;
-
-        // Запускаємо цикл заново
         this.scheduleNextStimulus();
     }
 
-    /**
-     * Завершує тест і формує статистику.
-     * @private
-     */
-    finish() {
-        this.state.isRunning = false;
-        const stats = this.calculateStats();
-        this.onTestComplete(stats);
+    finishRound() {
+        this.state.isRoundActive = false;
+
+        // Розрахунок середнього за раунд
+        const stats = this.calculateRoundStats();
+
+        if (stats) {
+            this.state.roundAverages.push(stats.average);
+        } else {
+            // Якщо раунд пустий (всі пропуски), додаємо 0 або обробляємо окремо
+            this.state.roundAverages.push(0);
+        }
+
+        const isFinalRound = this.state.currentRound >= this.config.rounds;
+
+        // Повідомляємо UI, що раунд завершено
+        // UI має вирішити: показувати таймер перерви чи фінальний екран
+        this.onRoundComplete(stats, isFinalRound);
     }
 
-    /**
-     * Розраховує статистику на основі збережених результатів.
-     * @returns {Object|null} Об'єкт зі статистикою (середнє, кількість) або null.
-     */
-    calculateStats() {
-        const validResults = this.state.results;
+    calculateRoundStats() {
+        const validResults = this.state.stimulusResults;
         if (!validResults.length) return null;
 
         const sum = validResults.reduce((a, b) => a + b, 0);
         const avg = sum / validResults.length;
 
         return {
+            roundNumber: this.state.currentRound,
             average: Math.round(avg),
             count: validResults.length,
             raw: validResults
@@ -207,31 +239,47 @@ export class ReactionTestCore {
     }
 
     /**
-     * Статичний метод для розрахунку біологічного віку (Pure Function).
-     * Використовує таблицю нормативів.
-     * * @param {number} actualMs - Середній час реакції (фактичний).
-     * @param {number} age - Хронологічний вік (паспортний).
-     * @param {string} gender - Стать ('male' | 'female').
-     * @returns {Object|null} Результат розрахунку або null, якщо вхідні дані некоректні.
+     * Отримати фінальні результати тесту
      */
+    getFinalResults() {
+        if (!this.state.roundAverages.length) return null;
+
+        // Середнє всіх середніх (або середнє всіх сирих даних - залежить від методики)
+        // Тут беремо середнє арифметичне середніх значень раундів
+        const grandSum = this.state.roundAverages.reduce((a, b) => a + b, 0);
+        const grandAvg = grandSum / this.state.roundAverages.length;
+
+        return {
+            grandAverage: Math.round(grandAvg),
+            roundAverages: this.state.roundAverages
+        };
+    }
+
+    // --- STATIC HELPERS ---
+
     static calculateBioAge(actualMs, age, gender) {
-        // Нормалізація віку до меж таблиці (7-16)
+        // Нормалізація віку до діапазону 7-16
         const tableAge = Math.min(Math.max(Math.floor(age), 7), 16);
 
-        if (!BIO_AGE_NORMATIVE_TABLE[gender]) return null;
-        const normMs = BIO_AGE_NORMATIVE_TABLE[gender][tableAge];
+        // Безпечний доступ до таблиці
+        const genderTable = BIO_AGE_NORMATIVE_TABLE[gender] || BIO_AGE_NORMATIVE_TABLE['male'];
+        const normMs = genderTable[tableAge];
 
         if (!normMs) return null;
 
-        const tbr = actualMs / normMs; // Темп біологічного розвитку (ТБР)
-        const bioAge = age / tbr;      // Біологічний вік (БВ)
+        const tbr = actualMs / normMs;
+        const bioAge = age / tbr;
+
+        let conclusion = "Норма";
+        if (tbr < 0.95) conclusion = "Розвиток прискорений (БВ > ПВ)";
+        if (tbr > 1.10) conclusion = "Розвиток уповільнений (БВ < ПВ)";
 
         return {
             chronologicalAge: age,
             biologicalAge: bioAge.toFixed(2),
             tbr: tbr.toFixed(2),
             normMs: normMs,
-            conclusion: tbr < 0.95 ? "Прискорений" : (tbr > 1.1 ? "Уповільнений" : "Норма")
+            conclusion: conclusion
         };
     }
 }
