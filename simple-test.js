@@ -46,8 +46,9 @@ function advanceTime(ms) {
 function assert(condition, message) {
     if (!condition) {
         console.error(`❌ FAIL: ${message}`);
-        // Виводимо стан для дебагу
         console.log("   Virtual Time:", virtualTime);
+        // Виводимо стан таймерів для дебагу
+        console.log("   Pending Timers:", timers.map(t => t.triggerTime));
         process.exit(1);
     } else {
         console.log(`✅ PASS: ${message}`);
@@ -63,13 +64,13 @@ const bioRes = ReactionTestCore.calculateBioAge(262.26, 12, 'male');
 assert(Math.floor(bioRes.biologicalAge) === 12, "Біологічний вік розраховано правильно");
 
 
-// ТЕСТ 2: Успішний цикл
+// ТЕСТ 2: Успішний цикл (з фіксованою експозицією)
 const core = new ReactionTestCore({
     stimuliCount: 2,
     minValidReactionTime: 100,
     minDelay: 1000,
-    maxDelay: 1000, // Фіксована затримка 1000мс для передбачуваності
-    exposureTime: 700
+    maxDelay: 1000, // Фіксована затримка 1000мс
+    exposureTime: 700 // Фіксований час показу
 });
 
 let isVisible = false;
@@ -79,43 +80,57 @@ core.onStimulusHide = () => { isVisible = false; };
 core.start();
 assert(core.state.isRunning === true, "Тест запущено");
 
-// Промотуємо час на 500мс (менше затримки 1000)
+// 1. Чекаємо появи (delay 1000ms)
+// Промотуємо час на 500мс
 advanceTime(500);
-assert(isVisible === false, "Стимул ще не показаний (500мс < 1000мс)");
+assert(isVisible === false, "Стимул ще не показаний (500 < 1000)");
 
 // Промотуємо ще на 500мс (разом 1000) -> має з'явитися
 advanceTime(500);
 assert(isVisible === true, "Стимул з'явився (час = 1000мс)");
 
+// 2. Реакція користувача
 // Промотуємо на 300мс (час реакції)
 // Оскільки exposureTime = 700, стимул НЕ повинен зникнути (300 < 700)
-advanceTime(300);
+advanceTime(300); // virtualTime = 1300
 assert(isVisible === true, "Стимул все ще на екрані під час реакції");
 
 // Клікаємо
 const result = core.registerInput();
 assert(result === true, "Ввід зараховано");
-assert(isVisible === true, "Стимул НЕ зник після натискання");
-assert(core.state.pendingReaction === 300, `Час реакції правильний (${core.state.pendingReaction} === 300)`);
+assert(isVisible === true, "Стимул НЕ зник після натискання (чекаємо завершення експозиції)");
+assert(core.state.pendingReaction === 300, `Тимчасовий час реакції правильний (${core.state.pendingReaction})`);
+
+// 3. Завершення експозиції
+// Ми пройшли 300мс експозиції, залишилось 400мс (700 - 300)
+advanceTime(400); // virtualTime = 1700
+assert(isVisible === false, "Стимул зник після завершення часу експозиції");
+assert(core.state.stimulusResults.length === 1, "Результат перенесено в історію");
+assert(core.state.stimulusResults[0] === 300, "Фінальний результат правильний");
 
 
 // ТЕСТ 3: Пропуск (Timeout)
-// Зараз час 1300. Наступний стимул заплановано через 1000мс (на 2300).
-advanceTime(1000);
-assert(isVisible === true, "Другий стимул з'явився (час = 2300)");
+// Зараз virtualTime = 1700.
+// Наступний стимул заплановано через 1000мс після зникнення попереднього.
+// Очікувана поява: 1700 + 1000 = 2700.
 
-// Нічого не робимо 800мс (більше за exposure 700мс)
-advanceTime(800);
+advanceTime(1000); // virtualTime = 2700
+assert(isVisible === true, "Другий стимул з'явився");
+
+// Нічого не робимо весь час експозиції (700мс) + трохи (1мс)
+advanceTime(701);
 assert(isVisible === false, "Стимул зник сам (час вийшов)");
-// Перевіряємо, що результат не записався (або записався як null/пропуск, залежить від реалізації)
-// У вашій поточній реалізації null не додається в stimulusResults, тому довжина масиву має залишитись 1
+
+// Перевіряємо, що результат не записався як валідний час
+// (В поточній логіці miss не додається в stimulusResults або додається як null, залежить від реалізації.
+// Перевіряємо, що масив не змінився, тобто ми не записали "фейковий" час)
 assert(core.state.stimulusResults.length === 1, "Пропущений стимул не вплинув на статистику успішних");
 
 
 // ТЕСТ 4: Спам
 core.resetFullTest();
 core.startNextRound(); // Раунд 1
-// Час 1000 (delay) -> Стимул
+// Час затримки 1000мс -> Стимул
 advanceTime(1000);
 
 let spamDetected = false;
