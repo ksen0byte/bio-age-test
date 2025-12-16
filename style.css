@@ -14,7 +14,7 @@ body {
     background: white;
     padding: 2rem;
     border-radius: 12px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
     text-align: center;
 }
 
@@ -34,41 +34,106 @@ body {
     z-index: 1000;
 }
 
-.screen.hidden { display: none; }
-.screen.active { display: block; }
+.screen.hidden {
+    display: none;
+}
+
+.screen.active {
+    display: block;
+}
 
 /* Стилі форми */
-.form-group { margin-bottom: 15px; text-align: left; }
-label { display: block; margin-bottom: 5px; font-weight: bold; color: #333; }
+.form-group {
+    margin-bottom: 15px;
+    text-align: left;
+}
+
+label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+    color: #333;
+}
+
 input, select {
-    width: 100%; padding: 10px;
-    border: 1px solid #ccc; border-radius: 6px;
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
     box-sizing: border-box;
 }
 
 .btn {
-    background-color: #2563eb; color: white;
-    border: none; padding: 12px 24px;
-    border-radius: 6px; cursor: pointer;
-    font-size: 16px; margin-top: 10px;
+    background-color: #2563eb;
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 16px;
+    margin-top: 10px;
 }
-.btn:hover { background-color: #1d4ed8; }
-.btn-small { background-color: #9ca3af; font-size: 14px; padding: 8px 16px;}
+
+.btn:hover {
+    background-color: #1d4ed8;
+}
+
+.btn-small {
+    background-color: #9ca3af;
+    font-size: 14px;
+    padding: 8px 16px;
+}
 
 /* Стимул - Червоний квадрат */
 #stimulus-area {
-    width: 300px; height: 300px;
-    display: flex; justify-content: center; align-items: center;
-}
-.shape {
-    width: 150px; height: 150px;
-    background-color: red;
-    display: block;
+    width: 300px;
+    height: 300px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
-#timer-display { font-size: 3rem; font-weight: bold; margin: 20px 0; color: #333; }
-.result-box { text-align: left; background: #f9fafb; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
-.result-row { display: flex; justify-content: space-between; margin-bottom: 8px; border-bottom: 1px solid #eee; padding-bottom: 4px;}
-.highlight { color: #2563eb; font-weight: bold; }
-.status-bad { color: #dc2626; }
-.status-good { color: #16a34a; }
+.shape {
+    width: 5cm; /* Exactly 5cm */
+    height: 5cm; /* Exactly 5cm */
+    background-color: transparent; /* No fill */
+    border: 5px solid red; /* Red outline */
+    box-sizing: border-box; /* Ensures border is included in 5cm */
+    /*border-radius: 50%;*/
+}
+
+#timer-display {
+    font-size: 3rem;
+    font-weight: bold;
+    margin: 20px 0;
+    color: #333;
+}
+
+.result-box {
+    text-align: left;
+    background: #f9fafb;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+
+.result-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 4px;
+}
+
+.highlight {
+    color: #2563eb;
+    font-weight: bold;
+}
+
+.status-bad {
+    color: #dc2626;
+}
+
+.status-good {
+    color: #16a34a;
+}

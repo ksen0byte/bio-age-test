@@ -95,8 +95,8 @@ assert(isVisible === true, "Стимул все ще на екрані під ч
 // Клікаємо
 const result = core.registerInput();
 assert(result === true, "Ввід зараховано");
-assert(isVisible === false, "Стимул зник ПІСЛЯ натискання");
-assert(core.state.stimulusResults[0] === 300, `Час реакції правильний (${core.state.stimulusResults[0]} === 300)`);
+assert(isVisible === true, "Стимул НЕ зник після натискання");
+assert(core.state.pendingReaction === 300, `Час реакції правильний (${core.state.pendingReaction} === 300)`);
 
 
 // ТЕСТ 3: Пропуск (Timeout)

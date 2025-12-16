@@ -16,7 +16,7 @@
 
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </head>
-<body x-data="reactionApp">
+<body x-data="reactionApp" @keydown.window.escape="quitTest">
 
 <div class="app-container">
 
@@ -53,7 +53,6 @@
 
     <section x-show="screen === 'test'"
              class="full-screen-dark"
-             @mousedown="handleInput"
              @touchstart.prevent="handleInput"
              @keydown.window.space="handleInput">
 
@@ -64,6 +63,16 @@
         <div class="test-info">
             Стимул: <span x-text="`${stimulusIndex} / ${totalStimuli}`"></span>
         </div>
+    </section>
+
+    <section x-show="screen === 'spam-error'" class="screen active">
+        <h2 style="color: #dc2626;">Помилка!</h2>
+        <div class="instruction-box">
+            <p>Ви натискаєте занадто часто або без команди.</p>
+            <p>Результати цієї серії анульовано.</p>
+            <p>Будь ласка, будьте уважніші.</p>
+        </div>
+        <button @click="retryRound" class="btn btn-warning">Перепройти серію</button>
     </section>
 
     <section x-show="screen === 'break'">

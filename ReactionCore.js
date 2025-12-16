@@ -13,16 +13,16 @@
 
 // Таблиця нормативів біологічного віку (Патент №126671)
 const BIO_AGE_NORMATIVE_TABLE = {
-    male: {7: 357.86, 8: 344.72, 9: 302.67, 10: 295.73, 11: 264.15, 12: 262.26, 13: 248.71, 14: 243.6, 15: 235.9, 16: 231.6},
-    female: {7: 387.06, 8: 347.32, 9: 311.79, 10: 304.15, 11: 272.93, 12: 268.74, 13: 256.78, 14: 251.77, 15: 247.3, 16: 239.4}
+    male: { 7: 357.86, 8: 344.72, 9: 302.67, 10: 295.73, 11: 264.15, 12: 262.26, 13: 248.71, 14: 243.6, 15: 235.9, 16: 231.6 },
+    female: { 7: 387.06, 8: 347.32, 9: 311.79, 10: 304.15, 11: 272.93, 12: 268.74, 13: 256.78, 14: 251.77, 15: 247.3, 16: 239.4 }
 };
 
 export class ReactionTestCore {
     /**
      * @param {Object} config - Налаштування тесту
      * @param {number} [config.rounds=3] - Кількість серій (раундів) тестування
-     * @param {number} [config.stimuliCount=30] - Кількість стимулів в одному раунді
-     * @param {number} [config.exposureTime=700] - Час показу стимулу на екрані (мс)
+     * @param {number} [config.stimuliCount=30] - Кількість стимулів у одному раунді
+     * @param {number} [config.exposureTime=700] - Час показу стимулу на екрані (мс). Стимул не зникає раніше цього часу.
      * @param {number} [config.minDelay=1500] - Мінімальна пауза перед появою (мс)
      * @param {number} [config.maxDelay=3000] - Максимальна пауза перед появою (мс)
      * @param {number} [config.minValidReactionTime=100] - Мінімальний час реакції (захист від випадкових кліків)
@@ -53,25 +53,32 @@ export class ReactionTestCore {
             stimulusStartTime: 0,
             isStimulusVisible: false,
             clickCountForStimulus: 0,   // Лічильник кліків для поточного стимулу
+            pendingReaction: null,      // Збережена реакція для поточного стимулу (якщо клік був під час експозиції)
 
             timerId: null
         };
 
         // --- Події (Callbacks) для зовнішнього коду ---
-        this.onStimulusShow = (index, total) => {
-        };     // Показати стимул
-        this.onStimulusHide = () => {
-        };                 // Сховати стимул
-        this.onRoundComplete = (roundStats, isFinal) => {
-        }; // Раунд завершено
-        this.onSpamDetected = () => {
-        };                 // Виявлено порушення
+        this.onStimulusShow = (index, total) => {};     // Показати стимул
+        this.onStimulusHide = () => {};                 // Сховати стимул
+        this.onRoundComplete = (roundStats, isFinal) => {}; // Раунд завершено
+        this.onSpamDetected = () => {};                 // Виявлено порушення
+    }
+
+    /**
+     * Логування подій ядра з часовою міткою
+     * @private
+     */
+    log(message) {
+        const time = new Date().toISOString().split('T')[1].slice(0, -1);
+        console.log(`[Core ${time}] ${message}`);
     }
 
     /**
      * Починає тестування з першого раунду.
      */
     start() {
+        this.log("Starting full test sequence");
         this.resetFullTest();
         this.startNextRound();
     }
@@ -81,10 +88,13 @@ export class ReactionTestCore {
      */
     startNextRound() {
         if (this.state.currentRound >= this.config.rounds) {
-            return; // Всі раунди завершено
+            this.log("All rounds finished. Stopping.");
+            return;
         }
 
         this.state.currentRound++;
+        this.log(`Starting Round ${this.state.currentRound} of ${this.config.rounds}`);
+
         this.state.currentStimulusIndex = 0;
         this.state.stimulusResults = [];
         this.state.isRunning = true;
@@ -97,6 +107,7 @@ export class ReactionTestCore {
      * Повне скидання стану (для рестарту).
      */
     resetFullTest() {
+        this.log("Resetting full test state");
         this.state.roundAverages = [];
         this.state.currentRound = 0;
         this.resetRoundState();
@@ -108,6 +119,7 @@ export class ReactionTestCore {
         this.state.isRunning = false;
         this.state.isRoundActive = false;
         this.state.isStimulusVisible = false;
+        this.state.pendingReaction = null;
         clearTimeout(this.state.timerId);
     }
 
@@ -122,6 +134,7 @@ export class ReactionTestCore {
         }
 
         const delay = Math.floor(Math.random() * (this.config.maxDelay - this.config.minDelay) + this.config.minDelay);
+        this.log(`Scheduling stimulus #${this.state.currentStimulusIndex + 1} in ${delay}ms`);
 
         this.state.timerId = setTimeout(() => {
             this.showStimulus();
@@ -130,96 +143,109 @@ export class ReactionTestCore {
 
     /**
      * Показує стимул і запускає таймер експозиції.
+     * Стимул буде видно рівно config.exposureTime мс.
      * @private
      */
     showStimulus() {
         this.state.isStimulusVisible = true;
         this.state.stimulusStartTime = Date.now();
         this.state.clickCountForStimulus = 0; // Скидання лічильника спаму
+        this.state.pendingReaction = null;    // Скидання попередньої реакції
 
+        this.log(`Showing stimulus #${this.state.currentStimulusIndex + 1}`);
         this.onStimulusShow(this.state.currentStimulusIndex + 1, this.config.stimuliCount);
 
-        // Таймер експозиції (авто-приховування)
+        // Таймер експозиції: стимул зникне ТІЛЬКИ коли цей таймер спрацює
         this.state.timerId = setTimeout(() => {
-            if (this.state.isStimulusVisible) {
-                this.handleNoReaction();
-            }
+            this.finishExposure();
         }, this.config.exposureTime);
     }
 
     /**
-     * Обробляє вхід від користувача (клік/клавіша).
-     * @returns {boolean} - true якщо вхід зараховано, false якщо проігноровано
-     */
-    registerInput() {
-        // Ігноруємо, якщо тест не йде або стимул вже зник
-        if (!this.state.isRoundActive || !this.state.isStimulusVisible) return false;
-
-        // 1. Захист від спаму (забагато кліків на один стимул)
-        this.state.clickCountForStimulus++;
-        if (this.state.clickCountForStimulus > this.config.maxSpamClicks) {
-            this.handleSpam();
-            return false;
-        }
-
-        const reactionTime = Date.now() - this.state.stimulusStartTime;
-
-        // 2. Фільтр фізіологічно неможливих реакцій
-        if (reactionTime < this.config.minValidReactionTime) {
-            return false;
-        }
-
-        this.recordResult(reactionTime);
-        return true;
-    }
-
-    handleSpam() {
-        this.state.isRoundActive = false; // Пауза
-        clearTimeout(this.state.timerId);
-        this.onStimulusHide();
-        this.onSpamDetected(); // UI має показати попередження і перезапустити раунд або стимул
-    }
-
-    /**
-     * Користувач не встиг натиснути.
+     * Викликається автоматично після завершення часу експозиції (700мс).
      * @private
      */
-    handleNoReaction() {
-        // Можна записувати null (пропуск) або макс. час.
-        // Зараз просто ігноруємо пропуск у статистиці або рахуємо як помилку.
-        // Для простоти переходимо далі без запису результату.
-        this.recordResult(null);
-    }
+    finishExposure() {
+        this.log(`Exposure finished for stimulus #${this.state.currentStimulusIndex + 1}`);
 
-    recordResult(time) {
         this.state.isStimulusVisible = false;
         this.onStimulusHide();
 
-        if (time !== null) {
-            this.state.stimulusResults.push(time);
+        // Перевіряємо, чи була реакція протягом експозиції
+        if (this.state.pendingReaction !== null) {
+            this.log(`Result committed: ${this.state.pendingReaction}ms`);
+            this.state.stimulusResults.push(this.state.pendingReaction);
+        } else {
+            this.log("Result: Miss (No reaction)");
+            // Можна додати null у результати, якщо потрібно рахувати пропуски:
+            // this.state.stimulusResults.push(null);
         }
 
         this.state.currentStimulusIndex++;
         this.scheduleNextStimulus();
     }
 
+    /**
+     * Обробляє вхід від користувача (клік/клавіша).
+     * @returns {boolean} - true якщо вхід валідний (навіть якщо просто збережений), false якщо проігноровано
+     */
+    registerInput() {
+        // Ігноруємо, якщо стимул не видно або раунд не активний
+        if (!this.state.isRoundActive || !this.state.isStimulusVisible) {
+            this.log("Input ignored: Stimulus not visible or round inactive");
+            return false;
+        }
+
+        // 1. Захист від спаму
+        this.state.clickCountForStimulus++;
+        if (this.state.clickCountForStimulus > this.config.maxSpamClicks) {
+            this.log("Spam detected! Stopping round.");
+            this.handleSpam();
+            return false;
+        }
+
+        // Якщо користувач вже успішно натиснув на цей стимул, ігноруємо повторні кліки
+        if (this.state.pendingReaction !== null) {
+            this.log("Input ignored: Already reacted to this stimulus");
+            return false;
+        }
+
+        const reactionTime = Date.now() - this.state.stimulusStartTime;
+
+        // 2. Фільтр надшвидких реакцій
+        if (reactionTime < this.config.minValidReactionTime) {
+            this.log(`Input ignored: Too fast (${reactionTime}ms)`);
+            return false;
+        }
+
+        // ВАЖЛИВО: Ми не ховаємо стимул тут! Ми просто запам'ятовуємо час.
+        // Стимул зникне тільки у finishExposure().
+        this.state.pendingReaction = reactionTime;
+        this.log(`Input accepted: ${reactionTime}ms (Waiting for exposure end)`);
+
+        return true;
+    }
+
+    handleSpam() {
+        this.state.isRoundActive = false;
+        clearTimeout(this.state.timerId); // Зупиняємо таймер експозиції
+        this.onStimulusHide();
+        this.onSpamDetected();
+    }
+
     finishRound() {
+        this.log(`Round ${this.state.currentRound} finished`);
         this.state.isRoundActive = false;
 
-        // Розрахунок середнього за раунд
         const stats = this.calculateRoundStats();
 
         if (stats) {
             this.state.roundAverages.push(stats.average);
         } else {
-            // Якщо раунд пустий (всі пропуски), додаємо 0 або обробляємо окремо
             this.state.roundAverages.push(0);
         }
 
         const isFinalRound = this.state.currentRound >= this.config.rounds;
-
-        // Повідомляємо UI, що раунд завершено
-        // UI має вирішити: показувати таймер перерви чи фінальний екран
         this.onRoundComplete(stats, isFinalRound);
     }
 
@@ -238,16 +264,13 @@ export class ReactionTestCore {
         };
     }
 
-    /**
-     * Отримати фінальні результати тесту
-     */
     getFinalResults() {
         if (!this.state.roundAverages.length) return null;
 
-        // Середнє всіх середніх (або середнє всіх сирих даних - залежить від методики)
-        // Тут беремо середнє арифметичне середніх значень раундів
         const grandSum = this.state.roundAverages.reduce((a, b) => a + b, 0);
         const grandAvg = grandSum / this.state.roundAverages.length;
+
+        this.log(`Test finished. Grand Average: ${grandAvg}`);
 
         return {
             grandAverage: Math.round(grandAvg),
@@ -255,13 +278,21 @@ export class ReactionTestCore {
         };
     }
 
+    /**
+     * Resets the CURRENT round to 0 and starts it over.
+     */
+    retryCurrentRound() {
+        this.log(`Retrying Round ${this.state.currentRound}`);
+        this.resetRoundState(); // Clears results/index for this round
+        this.state.isRunning = true;
+        this.state.isRoundActive = true;
+        this.scheduleNextStimulus();
+    }
+
     // --- STATIC HELPERS ---
 
     static calculateBioAge(actualMs, age, gender) {
-        // Нормалізація віку до діапазону 7-16
         const tableAge = Math.min(Math.max(Math.floor(age), 7), 16);
-
-        // Безпечний доступ до таблиці
         const genderTable = BIO_AGE_NORMATIVE_TABLE[gender] || BIO_AGE_NORMATIVE_TABLE['male'];
         const normMs = genderTable[tableAge];
 

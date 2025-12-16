@@ -1,9 +1,9 @@
-import { ReactionTestCore } from './ReactionCore.js';
+import {ReactionTestCore} from './ReactionCore.js';
 
 // Налаштування (можна винести в окремий файл або json)
 const CONFIG = {
     rounds: 3,
-    stimuliCount: 30,
+    stimuliCount: 5,
     exposureTime: 700,
     minDelay: 750,
     maxDelay: 1250,
@@ -18,7 +18,7 @@ export default function reactionApp() {
         screen: 'login', // 'login', 'instruction', 'test', 'break', 'result'
 
         // Дані користувача
-        user: { name: '', age: '', gender: 'male' },
+        user: {name: '', age: '', gender: 'male'},
 
         // Стан тесту (для відображення)
         round: 1,
@@ -54,10 +54,9 @@ export default function reactionApp() {
             };
 
             this.core.onSpamDetected = () => {
-                alert("⚠️ Не поспішайте! Натискайте тільки коли бачите квадрат.");
-                // Відновлюємо роботу ядра
-                this.core.state.isRunning = true;
-                this.core.scheduleNextStimulus();
+                // Switch to a blocking screen. The Space bar won't work here
+                // because handleInput checks for the 'test' screen.
+                this.screen = 'spam-error';
             };
 
             this.core.onRoundComplete = (stats, isFinal) => {
@@ -73,7 +72,7 @@ export default function reactionApp() {
 
         login() {
             if (this.user.age < 7 || this.user.age > 16) {
-                if(!confirm("Методика розрахована на 7-16 років. Продовжити?")) return;
+                if (!confirm("Методика розрахована на 7-16 років. Продовжити?")) return;
             }
             this.core.resetFullTest(); // Скидаємо ядро
             this.setupRoundView();
@@ -85,8 +84,10 @@ export default function reactionApp() {
         },
 
         handleInput() {
-            // Передаємо клік у ядро. Воно саме вирішить, чи це валідний клік, чи спам.
-            this.core.registerInput();
+            if (this.screen === 'test') {
+                // Передаємо клік у ядро. Воно саме вирішить, чи це валідний клік, чи спам.
+                this.core.registerInput();
+            }
         },
 
         skipBreak() {
@@ -96,7 +97,7 @@ export default function reactionApp() {
 
         restart() {
             this.screen = 'login';
-            this.user = { name: '', age: '', gender: 'male' };
+            this.user = {name: '', age: '', gender: 'male'};
         },
 
         // --- PRIVATE HELPERS ---
@@ -139,6 +140,19 @@ export default function reactionApp() {
 
             this.results = rawResults;
             this.screen = 'result';
-        }
+        },
+
+        retryRound() {
+            this.screen = 'test';
+            this.core.retryCurrentRound();
+        },
+
+        quitTest() {
+            if (this.screen === 'login') return;
+            if (confirm("Вийти з тестування?")) {
+                this.core.resetFullTest();
+                this.restart();
+            }
+        },
     };
 }
