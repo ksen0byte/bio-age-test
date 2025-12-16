@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BioAge Test</title>
+    <link rel="stylesheet" href="style.css">
+
+    <script type="module">
+        import reactionApp from './app.js';
+
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('reactionApp', reactionApp);
+        });
+    </script>
+
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+<body x-data="reactionApp">
+
+<div class="app-container">
+
+    <section x-show="screen === 'login'">
+        <h1>Визначення біологічного віку</h1>
+        <form @submit.prevent="login">
+            <div class="form-group">
+                <label>ПІБ</label>
+                <input type="text" x-model="user.name" required placeholder="Іваненко Іван">
+            </div>
+            <div class="form-group">
+                <label>Вік (7-16)</label>
+                <input type="number" x-model="user.age" required min="7" max="16">
+            </div>
+            <div class="form-group">
+                <label>Стать</label>
+                <select x-model="user.gender">
+                    <option value="male">Чоловіча</option>
+                    <option value="female">Жіноча</option>
+                </select>
+            </div>
+            <button class="btn">Почати</button>
+        </form>
+    </section>
+
+    <section x-show="screen === 'instruction'">
+        <h2 x-text="`Серія ${round} з ${totalRounds}`"></h2>
+        <div class="instruction-box">
+            <p>На екрані з'являтимуться червоні квадрати.</p>
+            <p>Тисніть <strong>ПРОБІЛ</strong> якнайшвидше.</p>
+        </div>
+        <button @click="startRound" class="btn">Готовий!</button>
+    </section>
+
+    <section x-show="screen === 'test'"
+             class="full-screen-dark"
+             @mousedown="handleInput"
+             @touchstart.prevent="handleInput"
+             @keydown.window.space="handleInput">
+
+        <div id="stimulus-area">
+            <div x-show="isStimulusVisible" class="shape"></div>
+        </div>
+
+        <div class="test-info">
+            Стимул: <span x-text="`${stimulusIndex} / ${totalStimuli}`"></span>
+        </div>
+    </section>
+
+    <section x-show="screen === 'break'">
+        <h2>Перерва</h2>
+        <p>Відпочиньте перед наступною серією.</p>
+        <div class="timer-display" x-text="timerDisplay"></div>
+        <button @click="skipBreak" class="btn btn-small">Пропустити</button>
+    </section>
+
+    <section x-show="screen === 'result'">
+        <h2>Результати</h2>
+        <template x-if="results && bioAge">
+            <div class="result-box">
+                <div class="result-row"><span>Учасник:</span> <strong x-text="user.name"></strong></div>
+                <div class="result-row">
+                    <span>Вік / Стать:</span>
+                    <span x-text="`${user.age} / ${user.gender === 'male' ? 'Чол' : 'Жін'}`"></span>
+                </div>
+                <hr class="my-2">
+
+                <template x-for="(avg, i) in results.roundAverages">
+                    <div class="result-row">
+                        <span x-text="`Серія ${i + 1}:`"></span>
+                        <span x-text="`${Math.round(avg)} мс`"></span>
+                    </div>
+                </template>
+
+                <div class="result-row highlight mt-2">
+                    <span>Середнє:</span>
+                    <span x-text="`${results.grandAverage} мс`"></span>
+                </div>
+
+                <hr class="my-2">
+
+                <div class="result-row">
+                    <span>Норма:</span>
+                    <span x-text="`${bioAge.normMs} мс`"></span>
+                </div>
+                <div class="result-row highlight mt-2">
+                    <span>Біологічний вік:</span>
+                    <span x-text="`${bioAge.biologicalAge} років`"></span>
+                </div>
+                <div class="mt-2 font-bold"
+                     :class="bioAge.conclusion.includes('Норма') ? 'text-success' : 'text-warning'"
+                     x-text="bioAge.conclusion">
+                </div>
+            </div>
+        </template>
+
+        <button @click="restart" class="btn">Новий учасник</button>
+    </section>
+
+</div>
+</body>
+</html>
