@@ -4,7 +4,7 @@ import { db } from './db.js';
 // Налаштування (можна винести в окремий файл або json)
 const CONFIG = {
     rounds: 3,
-    stimuliCount: 5,
+    stimuliCount: 30,
     exposureTime: 700,
     minDelay: 750,
     maxDelay: 1250,
