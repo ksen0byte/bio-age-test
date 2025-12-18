@@ -38,7 +38,10 @@
                     <option value="female">Жіноча</option>
                 </select>
             </div>
-            <button class="btn">Почати</button>
+            <div class="form-actions">
+                <button type="submit" class="btn">❯❯❯❯ Почати</button>
+                <button type="button" @click="showHistory" class="btn btn-secondary">📜 Історія</button>
+            </div>
         </form>
     </section>
 
@@ -60,7 +63,7 @@
             <div x-show="isStimulusVisible" class="shape"></div>
         </div>
 
-        <div class="test-info">
+        <div x-show="debug" class="test-info">
             Стимул: <span x-text="`${stimulusIndex} / ${totalStimuli}`"></span>
         </div>
     </section>
@@ -79,7 +82,7 @@
         <h2>Перерва</h2>
         <p>Відпочиньте перед наступною серією.</p>
         <div class="timer-display" x-text="timerDisplay"></div>
-        <button @click="skipBreak" class="btn btn-small">Пропустити</button>
+        <button @click="skipBreak" x-show="debug" class="btn btn-small">Пропустити</button>
     </section>
 
     <section x-show="screen === 'result'">
@@ -115,14 +118,49 @@
                     <span>Біологічний вік:</span>
                     <span x-text="`${bioAge.biologicalAge} років`"></span>
                 </div>
-                <div class="mt-2 font-bold"
-                     :class="bioAge.conclusion.includes('Норма') ? 'text-success' : 'text-warning'"
-                     x-text="bioAge.conclusion">
-                </div>
             </div>
         </template>
 
         <button @click="restart" class="btn">Новий учасник</button>
+    </section>
+
+    <section x-show="screen === 'history'" class="screen active">
+        <h2>Історія тестувань</h2>
+
+        <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                <thead>
+                <tr style="background: #eee; text-align: center;">
+                    <th style="padding: 8px;">Дата</th>
+                    <th style="padding: 8px;">Ім'я</th>
+                    <th style="padding: 8px;">Вік</th>
+                    <th style="padding: 8px;">Стать</th>
+                    <th style="padding: 8px;">Середній Час Реакції (мс)</th>
+                    <th style="padding: 8px;">Біологічний Вік</th>
+                    <th style="padding: 8px;">Дії</th>
+                </tr>
+                </thead>
+                <tbody>
+                <template x-for="rec in history" :key="rec.id">
+                    <tr style="border-bottom: 1px solid #ddd;">
+                        <td style="padding: 8px;" x-text="new Date(rec.date).toLocaleString()"></td>
+                        <td style="padding: 8px;" x-text="rec.user.name"></td>
+                        <td style="padding: 8px;" x-text="rec.user.age"></td>
+                        <td style="padding: 8px;" x-text="rec.user.gender === 'male' ? 'Ч' : 'Ж'"></td>
+                        <td style="padding: 8px;" x-text="rec.results.grandAverage"></td>
+                        <td style="padding: 8px;" x-text="rec.bioAge ? rec.bioAge.biologicalAge : '-'"></td>
+                        <td style="padding: 8px;">
+                            <button @click="deleteRecord(rec.id)" style="color: red; border: none; background: none; cursor: pointer;">Видалити ✕</button>
+                        </td>
+                    </tr>
+                </template>
+                </tbody>
+            </table>
+        </div>
+
+        <p x-show="history.length === 0" style="text-align: center; color: #888;">Історія порожня</p>
+
+        <button @click="goHome" class="btn">← Назад</button>
     </section>
 
 </div>

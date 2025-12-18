@@ -9,12 +9,14 @@ body {
 }
 
 .app-container {
-    width: 100%;
-    max-width: 600px;
     background: white;
     padding: 2rem;
     border-radius: 12px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    /* --- НОВІ РОЗМІРИ --- */
+    width: 90%;         /* Займає 90% ширини екрану (добре для мобільних) */
+    max-width: 900px;   /* Але не ширше 900px (добре для ПК і таблиці) */
+    margin: 2rem auto;  /* Центрування по горизонталі */
     text-align: center;
 }
 
@@ -136,4 +138,24 @@ input, select {
 
 .status-good {
     color: #16a34a;
+}
+
+.form-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+/* Зробимо кнопки однаковими за шириною */
+.form-actions .btn {
+    flex: 1;
+    margin-top: 0; /* Прибираємо старі відступи, якщо були */
+}
+
+/* Стиль для сірої кнопки */
+.btn-secondary {
+    background-color: #6b7280;
+}
+.btn-secondary:hover {
+    background-color: #4b5563;
 }

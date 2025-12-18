@@ -48,6 +48,7 @@ export class ReactionTestCore {
             currentStimulusIndex: 0,    // Поточний номер стимулу в раунді
             stimulusResults: [],        // Результати поточного раунду
             roundAverages: [],          // Середні значення завершених раундів
+            allRounds: [],              // Зберігає повну деталізацію кожного раунду
 
             // Тимчасові змінні для одного стимулу
             stimulusStartTime: 0,
@@ -109,6 +110,7 @@ export class ReactionTestCore {
     resetFullTest() {
         this.log("Resetting full test state");
         this.state.roundAverages = [];
+        this.state.allRounds = [];
         this.state.currentRound = 0;
         this.resetRoundState();
     }
@@ -241,8 +243,16 @@ export class ReactionTestCore {
 
         if (stats) {
             this.state.roundAverages.push(stats.average);
+            this.state.allRounds.push(stats);
         } else {
             this.state.roundAverages.push(0);
+            // Пустий раунд
+            this.state.allRounds.push({
+                roundNumber: this.state.currentRound,
+                average: 0,
+                count: 0,
+                raw: []
+            });
         }
 
         const isFinalRound = this.state.currentRound >= this.config.rounds;
@@ -274,7 +284,8 @@ export class ReactionTestCore {
 
         return {
             grandAverage: Math.round(grandAvg),
-            roundAverages: this.state.roundAverages
+            roundAverages: this.state.roundAverages,
+            roundsDetails: this.state.allRounds
         };
     }
 

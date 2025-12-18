@@ -1,4 +1,5 @@
 import {ReactionTestCore} from './ReactionCore.js';
+import { db } from './db.js';
 
 // Налаштування (можна винести в окремий файл або json)
 const CONFIG = {
@@ -9,13 +10,15 @@ const CONFIG = {
     maxDelay: 1250,
     minValidReactionTime: 100,
     maxSpamClicks: 3,
-    breakDuration: 120
+    breakDuration: 120,
+    debug: true,
 };
 
 export default function reactionApp() {
     return {
         // --- STATE (Реактивні дані) ---
         screen: 'login', // 'login', 'instruction', 'test', 'break', 'result'
+        history: [],
 
         // Дані користувача
         user: {name: '', age: '', gender: 'male'},
@@ -35,6 +38,8 @@ export default function reactionApp() {
         // Внутрішні посилання
         core: null,
         breakInterval: null,
+
+        debug: CONFIG.debug,
 
         // --- INIT ---
         init() {
@@ -59,9 +64,9 @@ export default function reactionApp() {
                 this.screen = 'spam-error';
             };
 
-            this.core.onRoundComplete = (stats, isFinal) => {
+            this.core.onRoundComplete = async (stats, isFinal) => {
                 if (isFinal) {
-                    this.finishTest();
+                    await this.finishTest();
                 } else {
                     this.startBreak();
                 }
@@ -128,7 +133,7 @@ export default function reactionApp() {
             this.timerDisplay = `${m}:${s}`;
         },
 
-        finishTest() {
+        async finishTest() {
             const rawResults = this.core.getFinalResults();
 
             // Використовуємо статичну чисту функцію ядра для розрахунку
@@ -139,7 +144,42 @@ export default function reactionApp() {
             );
 
             this.results = rawResults;
+            // Ми створюємо "глибоку копію" даних, щоб прибрати Proxy від Alpine.js
+            // Це робить дані "чистими" для IndexedDB
+            const cleanRecord = JSON.parse(JSON.stringify({
+                user: this.user,
+                results: this.results,
+                bioAge: this.bioAge,
+                date: new Date() // Дату краще генерувати тут або в db.js
+            }));
+
+            try {
+                await db.save(cleanRecord);
+                console.log("Результат успішно збережено!");
+            } catch (e) {
+                console.error("Помилка збереження:", e);
+                alert("Не вдалося зберегти результат в історію.");
+            }
+
             this.screen = 'result';
+        },
+
+        async showHistory() {
+            const data = await db.getAll();
+            this.history = data.reverse(); // Нові зверху
+            this.screen = 'history';
+        },
+
+        async deleteRecord(id) {
+            if(confirm('Видалити?')) {
+                await db.delete(id);
+                await this.showHistory(); // Оновити список
+            }
+        },
+
+        // Додайте кнопку "Назад" для історії
+        goHome() {
+            this.screen = 'login';
         },
 
         retryRound() {
