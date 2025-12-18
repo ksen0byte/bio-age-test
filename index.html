@@ -160,7 +160,10 @@
 
         <p x-show="history.length === 0" style="text-align: center; color: #888;">Історія порожня</p>
 
-        <button @click="goHome" class="btn">← Назад</button>
+        <div class="form-actions" style="margin-top: 20px;">
+            <button @click="goHome" class="btn">↩ Назад</button>
+            <button @click="exportData" class="btn btn-secondary">⬇️ Експорт у файл</button>
+        </div>
     </section>
 
 </div>

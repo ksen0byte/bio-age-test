@@ -194,5 +194,36 @@ export default function reactionApp() {
                 this.restart();
             }
         },
+
+        async exportData() {
+            // 1. Отримуємо всі дані з БД
+            const data = await db.getAll();
+
+            if (!data || data.length === 0) {
+                alert("Немає даних для експорту.");
+                return;
+            }
+
+            // 2. Перетворюємо в красивий JSON рядок
+            const jsonString = JSON.stringify(data, null, 2);
+
+            // 3. Створюємо "віртуальний файл" (Blob)
+            const blob = new Blob([jsonString], { type: "application/json" });
+
+            // 4. Створюємо посилання для скачування
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+
+            // Генеруємо ім'я файлу з датою: "reaction_dump_2023-10-27.json"
+            const dateStr = new Date().toISOString().split('T').join('-');
+            a.href = url;
+            a.download = `reaction_dump_${dateStr}.json`;
+
+            // 5. Клікаємо програмно і прибираємо сміття
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        },
     };
 }
