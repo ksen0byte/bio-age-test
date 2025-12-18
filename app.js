@@ -11,7 +11,7 @@ const CONFIG = {
     minValidReactionTime: 100,
     maxSpamClicks: 3,
     breakDuration: 120,
-    debug: true,
+    debug: false,
 };
 
 export default function reactionApp() {
